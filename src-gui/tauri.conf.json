@@ -1,0 +1,44 @@
+{
+  "build": {
+    "beforeBuildCommand": "",
+    "beforeDevCommand": "",
+    "devPath": ".",
+    "frontendDist": "."
+  },
+  "app": {
+    "windows": [
+      {
+        "fullscreen": false,
+        "height": 900,
+        "resizable": true,
+        "title": "PDF to CBZ Converter",
+        "width": 700
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "package": {
+    "productName": "PDF to CBZ Converter",
+    "version": "3.0.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "fs": {
+        "all": true
+      },
+      "dialog": {
+        "all": true
+      }
+    },
+    "bundle": {
+      "active": true,
+      "targets": ["deb", "dmg", "msi"],
+      "identifier": "com.pdf-to-cbz.app"
+    },
+    "security": {
+      "csp": null
+    }
+  }
+}

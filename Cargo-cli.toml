@@ -1,0 +1,34 @@
+[package]
+name = "pdf-to-cbz"
+version = "3.0.0"
+edition = "2021"
+description = "Ultra-fast PDF ↔ CBZ/CBR converter (CLI)"
+authors = ["Vincent Cruvellier"]
+
+[[bin]]
+name = "pdf-to-cbz"
+path = "src-cli/main.rs"
+
+[dependencies]
+# PDF Processing
+pdfium-render = "0.8"
+
+# Image Processing
+image = { version = "0.25", features = ["jpeg", "png"] }
+imagesize = "0.13"
+
+# Archive Operations
+zip = { version = "2.2", features = ["deflate"] }
+
+# PDF Creation
+printpdf = "0.7"
+
+# CLI & Utilities
+clap = { version = "4.4", features = ["derive"] }
+anyhow = "1"
+uuid = { version = "1", features = ["v4"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
