@@ -111,13 +111,20 @@ export async function selectCbzFile(multiple = false): Promise<string | string[]
  * Select a directory/folder
  */
 export async function selectDirectory(defaultPath?: string): Promise<string | null> {
-  const selected = await open({
-    directory: true,
-    multiple: false,
-    defaultPath,
-  });
-
-  return typeof selected === 'string' ? selected : null;
+  console.log('[SELECT_DIR] Opening directory picker, defaultPath:', defaultPath);
+  try {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      defaultPath,
+    });
+    console.log('[SELECT_DIR] User selected:', selected);
+    console.log('[SELECT_DIR] Type:', typeof selected);
+    return typeof selected === 'string' ? selected : null;
+  } catch (error) {
+    console.error('[SELECT_DIR] Error selecting directory:', error);
+    return null;
+  }
 }
 
 /**

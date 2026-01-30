@@ -16,21 +16,55 @@ pub fn bind_pdfium() -> Result<Pdfium, PdfiumError> {
         eprintln!("[PDFIUM ERROR] Library file not found at: {}", lib_path.display());
         eprintln!("[PDFIUM] Trying system library as fallback...");
         // Fallback: try system library
-        let pdfium = Pdfium::new(Pdfium::bind_to_system_library()?);
-        log_pdfium_info(&pdfium);
-        return Ok(pdfium);
+        match Pdfium::bind_to_system_library() {
+            Ok(lib) => {
+                let pdfium = Pdfium::new(lib);
+                log_pdfium_info(&pdfium);
+                return Ok(pdfium);
+            }
+            Err(e) => {
+                eprintln!("[PDFIUM ERROR] Failed to load system library: {:?}", e);
+                return Err(e);
+            }
+        }
     }
+
+    eprintln!("[PDFIUM] File exists, size: {} bytes", lib_path.metadata().map(|m| m.len()).unwrap_or(0));
 
     // Step 2: Load from explicit path
     // Try absolute path first, then try just the filename as fallback
     let pdfium = match Pdfium::bind_to_library(lib_path.to_string_lossy().to_string()) {
-        Ok(lib) => Pdfium::new(lib),
-        Err(_) => {
+        Ok(lib) => {
+            eprintln!("[PDFIUM] Successfully bound to library via path");
+            Pdfium::new(lib)
+        }
+        Err(e) => {
+            eprintln!("[PDFIUM ERROR] Failed to bind to library via path: {:?}", e);
+            eprintln!("[PDFIUM] Trying alternative binding methods...");
             // Fallback: try just the filename
-            Pdfium::new(
-                Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path(&lib_path))
-                    .or_else(|_| Pdfium::bind_to_system_library())?,
-            )
+            match Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path(&lib_path)) {
+                Ok(lib) => {
+                    eprintln!("[PDFIUM] Successfully bound via filename");
+                    Pdfium::new(lib)
+                }
+                Err(e2) => {
+                    eprintln!("[PDFIUM ERROR] Failed to bind via filename: {:?}", e2);
+                    eprintln!("[PDFIUM] Trying system library as last resort...");
+                    match Pdfium::bind_to_system_library() {
+                        Ok(lib) => {
+                            eprintln!("[PDFIUM] Successfully bound to system library");
+                            Pdfium::new(lib)
+                        }
+                        Err(e3) => {
+                            eprintln!("[PDFIUM ERROR] All binding methods failed");
+                            eprintln!("[PDFIUM ERROR] Path error: {:?}", e);
+                            eprintln!("[PDFIUM ERROR] Filename error: {:?}", e2);
+                            eprintln!("[PDFIUM ERROR] System error: {:?}", e3);
+                            return Err(e3);
+                        }
+                    }
+                }
+            }
         }
     };
 

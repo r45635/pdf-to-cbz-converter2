@@ -94,9 +94,12 @@ export default function Home({}: HomeProps) {
       const paths = Array.isArray(result) ? result : [result];
       const newFiles = await Promise.all(paths.map(async (path) => {
         const size = await TauriClient.getFileSize(path);
+        // Extract filename using the appropriate separator
+        const separator = path.includes('\\') ? '\\' : '/';
+        const fileName = path.split(separator).pop() || 'file';
         return {
           path,
-          name: path.split('/').pop() || path.split('\\').pop() || 'file',
+          name: fileName,
           sourceSize: size,
           status: 'pending' as const,
           progress: 0,
@@ -146,32 +149,25 @@ export default function Home({}: HomeProps) {
     setIsCancelling(false);
     cancelledRef.current = false;
 
-    // Ask user to select destination directory with a clear dialog
+    // Ask user to select destination directory
     const firstFilePath = batchFiles[0].path;
-    const firstFileDir = firstFilePath.substring(0, firstFilePath.lastIndexOf('/'));
+    // Use the platform-appropriate separator (backslash for Windows, slash for Unix)
+    const separator = firstFilePath.includes('\\') ? '\\' : '/';
+    const lastSeparatorIndex = firstFilePath.lastIndexOf(separator);
+    const firstFileDir = firstFilePath.substring(0, lastSeparatorIndex);
     
-    // Show a confirmation dialog first
-    const useSameFolder = window.confirm(
-      `${t('selectDestinationDesc')}\n\n✓ ${t('sameFolder')}\n✗ ${t('chooseFolder')}`
-    );
+    // Let user select destination directory (default to source folder)
+    console.log('[DEBUG] Opening folder picker, default:', firstFileDir);
+    const selectedDir = await TauriClient.selectDirectory(firstFileDir);
     
-    let destinationDir: string;
-    
-    if (useSameFolder) {
-      // Use the same folder as the first file
-      destinationDir = firstFileDir;
-      console.log('[DEBUG] Using same folder as source:', destinationDir);
-    } else {
-      // Let user select a custom destination directory
-      const selectedDir = await TauriClient.selectDirectory(firstFileDir);
-      if (!selectedDir) {
-        console.log('[DEBUG] User cancelled directory selection');
-        setIsProcessing(false);  // FIX: Reset flag when user cancels
-        return; // User cancelled
-      }
-      destinationDir = selectedDir;
-      console.log('[DEBUG] User selected destination directory:', destinationDir);
+    if (!selectedDir) {
+      console.log('[DEBUG] User cancelled directory selection');
+      setIsProcessing(false);  // Reset flag when user cancels
+      return; // User cancelled
     }
+    
+    const destinationDir = selectedDir;
+    console.log('[DEBUG] User selected destination directory:', destinationDir);
 
     try {
       // Create a local copy of files to process
@@ -205,10 +201,19 @@ export default function Home({}: HomeProps) {
         ));
 
         // Determine output file name and path
+        console.log(`[DEBUG] file.name: "${file.name}"`);
+        console.log(`[DEBUG] file.path: "${file.path}"`);
+        console.log(`[DEBUG] destinationDir: "${destinationDir}"`);
+        
         const defaultName = mode === 'pdf-to-cbz'
           ? file.name.replace(/\.pdf$/i, '.cbz')
           : file.name.replace(/\.(cbz|cbr)$/i, '.pdf');
-        const savePath = `${destinationDir}/${defaultName}`;
+        // Use the platform-appropriate separator
+        const separator = destinationDir.includes('\\') ? '\\' : '/';
+        const savePath = `${destinationDir}${separator}${defaultName}`;
+        
+        console.log(`[DEBUG] defaultName: "${defaultName}"`);
+        console.log(`[DEBUG] savePath: "${savePath}"`);
 
         // Store the save path early
         setBatchFiles(prev => prev.map((f) =>
