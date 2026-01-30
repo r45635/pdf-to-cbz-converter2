@@ -35,14 +35,17 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": [
-      "../resources/pdfium/*"
-    ],
+    "resources": {
+      "../resources/pdfium/*": "./"
+    },
     "macOS": {
       "minimumSystemVersion": "10.13"
     },
     "windows": {
-      "allowDowngrades": true
+      "allowDowngrades": true,
+      "wix": {
+        "language": "en-US"
+      }
     }
   }
 }
