@@ -35,8 +35,14 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": [
+      "../resources/pdfium/*"
+    ],
     "macOS": {
       "minimumSystemVersion": "10.13"
+    },
+    "windows": {
+      "allowDowngrades": true
     }
   }
 }

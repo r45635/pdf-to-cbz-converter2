@@ -24,9 +24,7 @@ dist-ssr
 *.sw?
 
 # Pdfium library files
-libpdfium.dylib
-libpdfium.so
-pdfium.dll
+# Keep resources/pdfium/ for distribution
 /lib/
 pdfium-*.tgz
 
