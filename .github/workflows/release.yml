@@ -110,6 +110,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          projectPath: src-tauri
           tagName: v${{ needs.create-release.outputs.version }}
           releaseName: 'v${{ needs.create-release.outputs.version }}'
           releaseBody: 'See the assets to download and install this version.'
