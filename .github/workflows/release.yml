@@ -51,6 +51,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Delete existing release if present
+        run: |
+          gh release delete "v${{ steps.get_version.outputs.version }}" --yes 2>/dev/null || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v2
@@ -59,6 +65,7 @@ jobs:
           name: Release v${{ steps.get_version.outputs.version }}
           draft: false
           prerelease: false
+          make_latest: true
           body: |
             # PDF to CBZ Converter v${{ steps.get_version.outputs.version }}
             
