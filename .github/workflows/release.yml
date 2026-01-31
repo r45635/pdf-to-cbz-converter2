@@ -229,12 +229,17 @@ jobs:
           7z a ${{ matrix.artifact }}.zip pdf-to-cbz.exe
           cd ..
 
+      - name: Wait to avoid API conflicts
+        run: sleep $((RANDOM % 30 + 5))
+        shell: bash
+
       - name: Upload CLI to Release (tar.gz)
         if: matrix.os != 'windows-latest'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.create-release.outputs.version }}
           files: ./dist/${{ matrix.artifact }}.tar.gz
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -244,5 +249,6 @@ jobs:
         with:
           tag_name: v${{ needs.create-release.outputs.version }}
           files: ./dist/${{ matrix.artifact }}.zip
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
