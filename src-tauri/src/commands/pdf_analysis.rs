@@ -1,4 +1,5 @@
-use pdfium_render::prelude::*;
+// PDF analysis commands
+// Note: pdfium-render is used via pdf-conversion-lib for actual PDF rendering
 use std::path::Path;
 
 use crate::models::{PdfAnalysisResult, PageInfo};

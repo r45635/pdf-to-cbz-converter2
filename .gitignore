@@ -23,11 +23,29 @@ dist-ssr
 *.sln
 *.sw?
 
-# Pdfium library files
+# PDFium library files
 # Keep resources/pdfium/ for distribution
 /lib/
 pdfium-*.tgz
+pdfium.dll
+*.dylib
+
+# PDFium SDK files (dev only)
+pdfium-sdk/
+include/
+licenses/
+args.gn
+PDFiumConfig.cmake
+
+# Debug/temp files
+*.png
+*.zip
+*.tgz
+app.log
 
 # Rust/Cargo build outputs
 **/target/
 Cargo.lock
+
+# Deprecated
+src-gui/

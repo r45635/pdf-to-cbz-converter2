@@ -23,33 +23,20 @@ export default function Home({}: HomeProps) {
   const { lang, setLang, t } = useTranslation();
   const [mode, setMode] = useState<ConversionMode>('pdf-to-cbz');
 
-  // Build timestamp - set once on mount
+  // Build timestamp - set once on mount (removed verbose logging for production)
   const [buildTime] = useState(() => {
     const now = new Date();
-    const timestamp = now.toLocaleTimeString('en-US', {
+    return now.toLocaleTimeString('en-US', {
       hour12: true,
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit'
     });
-    const isoTime = now.toISOString();
-    console.log(`\n${'='.repeat(100)}`);
-    console.log(`🚀 APP VERSION - ${timestamp} - ${isoTime}`);
-    console.log('='.repeat(100) + '\n');
-    return `${timestamp}`;
   });
 
   // Batch mode (works for single or multiple files)
   const [batchFiles, setBatchFiles] = useState<BatchFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-
-  // Log batchFiles changes to trace unwanted conversions
-  useEffect(() => {
-    const statuses = batchFiles.map(f => f.status).join(',');
-    if (batchFiles.length > 0) {
-      console.log(`[STATE] batchFiles updated: ${batchFiles.length} files, statuses: [${statuses}]`);
-    }
-  }, [batchFiles]);
   
   // Note: Progress listener is handled per-conversion in tauri-client.ts
   // No global listener needed - it was causing the infinite restart bug!
@@ -451,7 +438,7 @@ export default function Home({}: HomeProps) {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               {t('title')}
@@ -463,9 +450,9 @@ export default function Home({}: HomeProps) {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+      <main className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
         {/* Mode Selector */}
-        <div className="mb-6 flex gap-4 bg-white dark:bg-gray-800 p-2 rounded-lg shadow">
+        <div className="mb-4 flex gap-4 bg-white dark:bg-gray-800 p-2 rounded-lg shadow">
           <button
             onClick={() => handleModeChange('pdf-to-cbz')}
             className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
@@ -489,16 +476,16 @@ export default function Home({}: HomeProps) {
         </div>
 
         {/* File Upload Area */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 mb-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-3 mb-4">
           <div
-            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+            className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
               isDragging
                 ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
                 : 'border-gray-300 dark:border-gray-600 hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-gray-700'
             }`}>
             <div className="flex flex-col items-center">
               <svg
-                className="w-12 h-12 text-gray-400 mb-2"
+                className="w-10 h-10 text-gray-400 mb-1"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -510,24 +497,24 @@ export default function Home({}: HomeProps) {
                   d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                 />
               </svg>
-              <p className="text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {mode === 'pdf-to-cbz' 
                   ? 'Drag & drop PDF file(s) here or click to select' 
                   : 'Drag & drop CBZ/CBR file(s) here or click to select'}
               </p>
               
               {/* Add Files Button */}
-              <div className="mt-2">
+              <div className="mt-1">
                 <button
                   onClick={() => handleFileSelect(true)}
-                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  className="px-4 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
                 >
                   📁 Add Files to List
                 </button>
               </div>
               
               {batchFiles.length > 0 && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                   {batchFiles.length} file(s) in list
                 </p>
               )}
@@ -775,12 +762,9 @@ export default function Home({}: HomeProps) {
       </main>
 
       {/* Footer */}
-      <footer className="mt-12 py-6 text-center text-gray-600 dark:text-gray-400 text-sm">
+      <footer className="mt-8 py-4 text-center text-gray-600 dark:text-gray-400 text-sm">
         <p>
           {t('footer')} • {t('madeWith')} ❤️
-        </p>
-        <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
-          🔧 Build: {buildTime}
         </p>
       </footer>
     </div>

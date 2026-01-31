@@ -14,6 +14,83 @@ static CONVERSION_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 static CONVERSION_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 static CONVERSION_ID: AtomicU64 = AtomicU64::new(0);
 
+// Flag for cancellation support
+static CANCEL_REQUESTED: AtomicBool = AtomicBool::new(false);
+
+/// Validate and sanitize a file path to prevent path traversal attacks
+/// Returns canonicalized path if valid, error if suspicious
+fn validate_path(path: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(path);
+    
+    // Check for suspicious patterns
+    let path_str = path.to_string_lossy();
+    if path_str.contains("..") {
+        return Err("Invalid path: directory traversal not allowed".to_string());
+    }
+    
+    // Canonicalize to resolve any symlinks and get absolute path
+    let canonical = path.canonicalize()
+        .map_err(|e| format!("Invalid path: {}", e))?;
+    
+    // Verify the file exists and is accessible
+    if !canonical.exists() {
+        return Err("File not found".to_string());
+    }
+    
+    Ok(canonical)
+}
+
+/// Validate an output path (parent directory must exist)
+fn validate_output_path(path: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(path);
+    
+    // Check for suspicious patterns
+    let path_str = path.to_string_lossy();
+    if path_str.contains("..") {
+        return Err("Invalid output path: directory traversal not allowed".to_string());
+    }
+    
+    // Verify parent directory exists
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            return Err("Output directory does not exist".to_string());
+        }
+    }
+    
+    Ok(path)
+}
+
+/// Convert internal error messages to user-friendly messages
+fn user_friendly_error(internal_error: &str) -> String {
+    // Map common technical errors to user-friendly messages
+    if internal_error.contains("permission denied") || internal_error.contains("Permission denied") {
+        return "Access denied. Please check file permissions.".to_string();
+    }
+    if internal_error.contains("No such file") || internal_error.contains("not found") {
+        return "File not found. Please select a valid file.".to_string();
+    }
+    if internal_error.contains("is a directory") {
+        return "A folder was selected instead of a file.".to_string();
+    }
+    if internal_error.contains("out of memory") || internal_error.contains("OutOfMemory") {
+        return "Not enough memory. Try closing other applications or using a smaller file.".to_string();
+    }
+    if internal_error.contains("PDFium") || internal_error.contains("pdfium") {
+        return "PDF processing error. The file may be corrupted or password-protected.".to_string();
+    }
+    if internal_error.contains("password") || internal_error.contains("encrypted") {
+        return "This PDF is password-protected. Please provide an unprotected file.".to_string();
+    }
+    if internal_error.contains("corrupted") || internal_error.contains("malformed") {
+        return "The file appears to be corrupted or invalid.".to_string();
+    }
+    if internal_error.contains("disk full") || internal_error.contains("No space") {
+        return "Not enough disk space. Please free up some space and try again.".to_string();
+    }
+    // Default: return a simplified version without technical details
+    format!("Conversion failed. Please try again with a different file.")
+}
+
 #[tauri::command]
 pub async fn convert_pdf_to_cbz(
     window: tauri::Window,
@@ -25,58 +102,37 @@ pub async fn convert_pdf_to_cbz(
     use std::time::Instant;
     let start_time = Instant::now();
 
-    eprintln!("[GUI {:?}] ========== CONVERSION START (acquiring lock) ==========", start_time.elapsed());
+    // Validate input path
+    let validated_path = validate_path(&path)?;
+    let path = validated_path.to_string_lossy().to_string();
 
     // Acquire lock to prevent concurrent PDFium calls
-    eprintln!("[GUI {:?}] Waiting for conversion lock...", start_time.elapsed());
     let _lock = CONVERSION_LOCK.lock().await;
-    eprintln!("[GUI {:?}] ✓ Lock acquired, proceeding with conversion", start_time.elapsed());
-
-    eprintln!("[GUI {:?}] Input path: {}", start_time.elapsed(), path);
-    eprintln!("[GUI {:?}] DPI: {}, Quality: {}, Lossless: {}", start_time.elapsed(), dpi, quality, lossless);
 
     if !PathBuf::from(&path).exists() {
-        eprintln!("[GUI ERROR {:?}] PDF file not found: {}", start_time.elapsed(), path);
-        return Err("PDF file not found".to_string());
+        return Err("PDF file not found. Please select a valid file.".to_string());
     }
-    eprintln!("[GUI {:?}] File exists, checking size...", start_time.elapsed());
 
     let effective_dpi = if dpi == 0 { 200 } else { dpi };
     let effective_quality = if quality == 0 { 85 } else { quality };
 
-    eprintln!("[GUI {:?}] Effective DPI: {}, Effective Quality: {}", start_time.elapsed(), effective_dpi, effective_quality);
-
     // Read PDF file
-    eprintln!("[GUI {:?}] Reading PDF file...", start_time.elapsed());
     let pdf_data = fs::read(&path)
-        .map_err(|e| {
-            let err_msg = format!("Failed to read PDF file: {}", e);
-            eprintln!("[GUI ERROR {:?}] {}", start_time.elapsed(), err_msg);
-            err_msg
-        })?;
-
-    eprintln!("[GUI {:?}] PDF file read successfully: {} bytes", start_time.elapsed(), pdf_data.len());
+        .map_err(|e| user_friendly_error(&e.to_string()))?;
 
     let _ = window.emit("conversion-progress", serde_json::json!({
         "percentage": 5,
-        "message": "PDF chargé, démarrage conversion..."
+        "message": "PDF loaded, starting conversion..."
     }));
-
-    // Use optimized shared library function with progress tracking
-    eprintln!("[GUI {:?}] Starting conversion task with optimized pipeline...", start_time.elapsed());
 
     // Send progress: starting conversion
-    eprintln!("[GUI {:?}] ========== EMITTING 25% PROGRESS ==========", start_time.elapsed());
-    let emit_result = window.emit("conversion-progress", serde_json::json!({
+    let _ = window.emit("conversion-progress", serde_json::json!({
         "percentage": 25,
-        "message": "Traitement des pages (cette opération prend 2-3 minutes)..."
+        "message": "Processing pages..."
     }));
-    eprintln!("[GUI {:?}] 25% event emit result: {:?}", start_time.elapsed(), emit_result);
 
-    // Add small delay to ensure event is processed
-    eprintln!("[GUI {:?}] Waiting 100ms before spawn_blocking...", start_time.elapsed());
+    // Small delay to ensure event is processed
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-    eprintln!("[GUI {:?}] Sleep completed, about to spawn_blocking", start_time.elapsed());
 
     // Spawn progress ticker while conversion runs
     let window_ticker = window.clone();
@@ -101,77 +157,41 @@ pub async fn convert_pdf_to_cbz(
     });
 
     let images = tokio::task::spawn_blocking(move || {
-        let block_start = Instant::now();
-        eprintln!("[GUI BLOCKING START] Task started after {:?}", block_start.elapsed());
-        eprintln!("[GUI BLOCKING] Starting PDF to images conversion...");
-
         let result = if lossless {
-            eprintln!("[GUI {:?}] Using lossless mode (PNG at {} DPI)", block_start.elapsed(), effective_dpi);
             convert_pdf_lossless(&pdf_data, effective_dpi)
         } else {
-            eprintln!("[GUI {:?}] Using optimized parallel mode with DPI={}, Quality={}", block_start.elapsed(), effective_dpi, effective_quality);
             // Use the optimized parallel conversion from shared library
             convert_pdf_to_images_parallel(&pdf_data, effective_dpi, effective_quality as u8, 0)
                 .map_err(|e| e.to_string())
         };
-
-        match &result {
-            Ok(imgs) => eprintln!("[GUI {:?}] Conversion succeeded: {} images (total time: {:.2}s)", block_start.elapsed(), imgs.len(), block_start.elapsed().as_secs_f64()),
-            Err(e) => eprintln!("[GUI ERROR {:?}] Conversion failed: {} (total time: {:.2}s)", block_start.elapsed(), e, block_start.elapsed().as_secs_f64()),
-        }
-
         result
     })
     .await
-    .map_err(|e| {
-        let err_msg = format!("Task join error: {}", e);
-        eprintln!("[GUI ERROR {:?}] {}", start_time.elapsed(), err_msg);
-        err_msg
-    })?
-    .map_err(|e| {
-        let err_msg = format!("PDF conversion failed: {}", e);
-        eprintln!("[GUI ERROR {:?}] {}", start_time.elapsed(), err_msg);
-        err_msg
-    })?;
+    .map_err(|e| user_friendly_error(&e.to_string()))?
+    .map_err(|e| user_friendly_error(&e))?;
 
     // Stop progress ticker
     progress_ticker.abort();
 
     if images.is_empty() {
-        eprintln!("[GUI ERROR {:?}] No pages extracted", start_time.elapsed());
-        return Err("No pages were extracted from PDF".to_string());
+        return Err("No pages could be extracted from this PDF. The file may be empty or corrupted.".to_string());
     }
 
     let page_count = images.len();
-    eprintln!("[GUI {:?}] Converted {} pages, creating CBZ archive...", start_time.elapsed(), page_count);
-
-    let zip_start = std::time::Instant::now();
     let window_for_zip = window.clone();
 
     let cbz_data = utils::create_cbz_with_progress(images, move |done, total| {
-        // Map zip progress from 90% to 100% (10% range)
         let percentage = 90 + ((done as f32 / total as f32) * 10.0) as u32;
         let _ = window_for_zip.emit("conversion-progress", serde_json::json!({
             "percentage": percentage,
-            "message": format!("Archive CBZ {}/{} fichiers...", done, total)
+            "message": format!("Creating CBZ archive {}/{}...", done, total)
         }));
     })
-        .map_err(|e| {
-            let err_msg = format!("Failed to create CBZ archive: {}", e);
-            eprintln!("[GUI ERROR {:?}] {}", start_time.elapsed(), err_msg);
-            err_msg
-        })?;
-
-    let zip_elapsed = zip_start.elapsed().as_secs_f64();
-    eprintln!("[GUI {:?}] CBZ archive created in {:.2}s", start_time.elapsed(), zip_elapsed);
-
-    eprintln!("[GUI {:?}] ========== CONVERSION SUCCESS ==========", start_time.elapsed());
-    eprintln!("[GUI {:?}] CBZ created: {} bytes ({:.2} MB)", start_time.elapsed(), cbz_data.len(), cbz_data.len() as f64 / (1024.0 * 1024.0));
-    eprintln!("[GUI {:?}] TOTAL TIME: {:?}", start_time.elapsed(), start_time.elapsed());
+    .map_err(|e| user_friendly_error(&e.to_string()))?;
 
     let _ = window.emit("conversion-progress", serde_json::json!({
         "percentage": 100,
-        "message": format!("Terminé! {} pages → {} MB", page_count, cbz_data.len() / 1024 / 1024)
+        "message": format!("Done! {} pages → {:.1} MB", page_count, cbz_data.len() as f64 / 1024.0 / 1024.0)
     }));
 
     Ok(cbz_data)
@@ -279,7 +299,13 @@ pub async fn get_file_size(path: String) -> Result<u64, String> {
 
 #[tauri::command]
 pub fn cancel_conversion() -> Result<(), String> {
+    CANCEL_REQUESTED.store(true, Ordering::SeqCst);
     Ok(())
+}
+
+/// Check if cancellation was requested and reset the flag
+fn check_and_reset_cancel() -> bool {
+    CANCEL_REQUESTED.swap(false, Ordering::SeqCst)
 }
 
 /// Convert PDF to CBZ and write directly to disk (avoids IPC bottleneck for large files)
@@ -296,9 +322,17 @@ pub async fn convert_pdf_to_cbz_direct(
     use std::time::Instant;
     let start_time = Instant::now();
 
+    // Clear any previous cancellation request
+    CANCEL_REQUESTED.store(false, Ordering::SeqCst);
+
+    // Validate input and output paths
+    let validated_input = validate_path(&path)?;
+    let validated_output = validate_output_path(&output_path)?;
+    let path = validated_input.to_string_lossy().to_string();
+    let output_path = validated_output.to_string_lossy().to_string();
+
     // Generate unique conversion ID
     let conv_id = CONVERSION_ID.fetch_add(1, Ordering::SeqCst);
-    eprintln!("[RUST CONV#{}] ========== CONVERSION START ==========", conv_id);
 
     // Check and set in-progress guard
     if CONVERSION_IN_PROGRESS.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {

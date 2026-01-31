@@ -2,105 +2,124 @@ use pdfium_render::prelude::*;
 use std::path::PathBuf;
 use std::env;
 
-/// Initialize Pdfium with explicit library path, env var support, and comprehensive logging
+/// Initialize Pdfium with comprehensive library search
+/// Works for CLI, development, and packaged applications
 pub fn bind_pdfium() -> Result<Pdfium, PdfiumError> {
-    // Log system information
     log_system_info();
 
-    // Step 1: Determine library path (with priority)
-    let lib_path = determine_lib_path();
+    // Determine library filename based on platform
+    let lib_filename = if cfg!(target_os = "macos") {
+        "libpdfium.dylib"
+    } else if cfg!(target_os = "windows") {
+        "pdfium.dll"
+    } else {
+        "libpdfium.so"
+    };
 
-    eprintln!("[PDFIUM] Attempting to load library from: {}", lib_path.display());
+    // Collect all search paths
+    let mut search_paths: Vec<PathBuf> = Vec::new();
+    let mut lib_path: Option<PathBuf> = None;
 
-    if !lib_path.exists() {
-        eprintln!("[PDFIUM ERROR] Library file not found at: {}", lib_path.display());
-        eprintln!("[PDFIUM] Trying system library as fallback...");
-        // Fallback: try system library
-        match Pdfium::bind_to_system_library() {
-            Ok(lib) => {
-                let pdfium = Pdfium::new(lib);
-                log_pdfium_info(&pdfium);
-                return Ok(pdfium);
-            }
-            Err(e) => {
-                eprintln!("[PDFIUM ERROR] Failed to load system library: {:?}", e);
-                return Err(e);
+    // Priority 1: PDFIUM_LIB_DIR environment variable
+    if let Ok(env_path) = env::var("PDFIUM_LIB_DIR") {
+        let p = PathBuf::from(&env_path);
+        search_paths.push(p.clone());
+        if p.exists() {
+            eprintln!("[PDFIUM] Found via PDFIUM_LIB_DIR: {}", p.display());
+            lib_path = Some(p);
+        }
+    }
+
+    // Priority 2: Current working directory (CLI usage)
+    if lib_path.is_none() {
+        if let Ok(cwd) = env::current_dir() {
+            let cwd_path = cwd.join(lib_filename);
+            search_paths.push(cwd_path.clone());
+            if cwd_path.exists() {
+                lib_path = Some(cwd_path);
             }
         }
     }
 
-    eprintln!("[PDFIUM] File exists, size: {} bytes", lib_path.metadata().map(|m| m.len()).unwrap_or(0));
-
-    // Step 2: Load from explicit path
-    // Try absolute path first, then try just the filename as fallback
-    let pdfium = match Pdfium::bind_to_library(lib_path.to_string_lossy().to_string()) {
-        Ok(lib) => {
-            eprintln!("[PDFIUM] Successfully bound to library via path");
-            Pdfium::new(lib)
-        }
-        Err(e) => {
-            eprintln!("[PDFIUM ERROR] Failed to bind to library via path: {:?}", e);
-            eprintln!("[PDFIUM] Trying alternative binding methods...");
-            // Fallback: try just the filename
-            match Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path(&lib_path)) {
-                Ok(lib) => {
-                    eprintln!("[PDFIUM] Successfully bound via filename");
-                    Pdfium::new(lib)
-                }
-                Err(e2) => {
-                    eprintln!("[PDFIUM ERROR] Failed to bind via filename: {:?}", e2);
-                    eprintln!("[PDFIUM] Trying system library as last resort...");
-                    match Pdfium::bind_to_system_library() {
-                        Ok(lib) => {
-                            eprintln!("[PDFIUM] Successfully bound to system library");
-                            Pdfium::new(lib)
-                        }
-                        Err(e3) => {
-                            eprintln!("[PDFIUM ERROR] All binding methods failed");
-                            eprintln!("[PDFIUM ERROR] Path error: {:?}", e);
-                            eprintln!("[PDFIUM ERROR] Filename error: {:?}", e2);
-                            eprintln!("[PDFIUM ERROR] System error: {:?}", e3);
-                            return Err(e3);
-                        }
+    // Priority 3: Next to the executable
+    if lib_path.is_none() {
+        if let Ok(exe_path) = env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                // Check multiple locations relative to executable
+                let candidates = vec![
+                    exe_dir.join(lib_filename),
+                    exe_dir.join("resources").join(lib_filename),
+                    exe_dir.join("lib").join(lib_filename),
+                    exe_dir.join("../Resources").join(lib_filename), // macOS bundle
+                ];
+                
+                for candidate in candidates {
+                    let canonical = candidate.canonicalize().unwrap_or(candidate.clone());
+                    search_paths.push(canonical.clone());
+                    if canonical.exists() {
+                        lib_path = Some(canonical);
+                        break;
                     }
                 }
             }
         }
-    };
-
-    eprintln!("[PDFIUM] Successfully loaded library from: {}", lib_path.display());
-    log_pdfium_info(&pdfium);
-
-    Ok(pdfium)
-}
-
-/// Determine library path with priority:
-/// 1. PDFIUM_LIB_DIR env var
-/// 2. ./libpdfium.dylib (macOS dev)
-/// 3. ./pdfium.dll (Windows dev)
-/// 4. ./libpdfium.so (Linux dev)
-/// 5. Tauri resource dir (release)
-fn determine_lib_path() -> PathBuf {
-    // Check PDFIUM_LIB_DIR env var
-    if let Ok(env_path) = env::var("PDFIUM_LIB_DIR") {
-        let p = PathBuf::from(&env_path);
-        eprintln!("[PDFIUM] Found env PDFIUM_LIB_DIR: {}", p.display());
-        return p;
     }
 
-    // Check project root ./libpdfium.* (dev)
-    let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let project_root = PathBuf::from(manifest_dir)
-        .parent()
-        .map(|p| p.to_path_buf())
-        .unwrap_or_else(|| PathBuf::from("."));
+    // Priority 4: Development - project root and resources/pdfium
+    if lib_path.is_none() {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let project_root = manifest_dir.parent().unwrap();
+        
+        let dev_candidates = vec![
+            project_root.join(lib_filename),
+            project_root.join("resources/pdfium").join(lib_filename),
+            project_root.join("lib").join(lib_filename),
+        ];
+        
+        for candidate in dev_candidates {
+            if candidate.exists() {
+                search_paths.push(candidate.clone());
+                eprintln!("[PDFIUM] Found in dev path: {}", candidate.display());
+                lib_path = Some(candidate);
+                break;
+            }
+        }
+    }
 
-    if cfg!(target_os = "macos") {
-        project_root.join("libpdfium.dylib")
-    } else if cfg!(target_os = "windows") {
-        project_root.join("pdfium.dll")
-    } else {
-        project_root.join("libpdfium.so")
+    // Try to load from found path
+    if let Some(ref final_path) = lib_path {
+        eprintln!("[PDFIUM] Attempting to load library from: {}", final_path.display());
+        eprintln!("[PDFIUM] File exists, size: {} bytes", final_path.metadata().map(|m| m.len()).unwrap_or(0));
+        
+        // Use the path directly (not pdfium_platform_library_name_at_path which expects a directory)
+        match Pdfium::bind_to_library(final_path.to_string_lossy().to_string()) {
+            Ok(bindings) => {
+                eprintln!("[PDFIUM] Successfully loaded library from: {}", final_path.display());
+                log_success();
+                return Ok(Pdfium::new(bindings));
+            }
+            Err(e) => {
+                eprintln!("[PDFIUM ERROR] Failed to load from path: {:?}", e);
+            }
+        }
+    }
+
+    // Fallback: system library
+    eprintln!("[PDFIUM] Trying system library as fallback...");
+    match Pdfium::bind_to_system_library() {
+        Ok(bindings) => {
+            eprintln!("[PDFIUM] Successfully bound to system library");
+            log_success();
+            Ok(Pdfium::new(bindings))
+        }
+        Err(e) => {
+            eprintln!("[PDFIUM ERROR] Failed to load system library: {:?}", e);
+            eprintln!("[PDFIUM ERROR] Library not found. Searched in:");
+            for path in &search_paths {
+                eprintln!("[PDFIUM]   - {}", path.display());
+            }
+            Err(e)
+        }
     }
 }
 
@@ -110,21 +129,12 @@ fn log_system_info() {
     eprintln!("PDFIUM INITIALIZATION");
     eprintln!("═══════════════════════════════════════════════════════════");
 
-    // Target architecture
-    let arch = if cfg!(target_arch = "x86_64") {
-        "x86_64"
-    } else if cfg!(target_arch = "aarch64") {
-        "arm64"
-    } else {
-        env::consts::ARCH
-    };
+    let arch = if cfg!(target_arch = "x86_64") { "x86_64" } 
+               else if cfg!(target_arch = "aarch64") { "arm64" } 
+               else { env::consts::ARCH };
     eprintln!("[SYSTEM] Architecture: {}", arch);
+    eprintln!("[SYSTEM] OS: {}", env::consts::OS);
 
-    // OS
-    let os = env::consts::OS;
-    eprintln!("[SYSTEM] OS: {}", os);
-
-    // Check PDFIUM_LIB_DIR env
     if let Ok(env_dir) = env::var("PDFIUM_LIB_DIR") {
         eprintln!("[SYSTEM] PDFIUM_LIB_DIR env var: {}", env_dir);
     } else {
@@ -132,11 +142,7 @@ fn log_system_info() {
     }
 }
 
-/// Log information about loaded Pdfium instance
-fn log_pdfium_info(_pdfium: &Pdfium) {
-    // Try to get version if available via bindings
-    // pdfium_render may expose version via FPDF_GetVersion or similar
-    // For now, log that we loaded it
+fn log_success() {
     eprintln!("[PDFIUM] Library loaded successfully");
     eprintln!("═══════════════════════════════════════════════════════════");
 }

@@ -5,6 +5,7 @@
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-1.75+-orange.svg)](https://www.rust-lang.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
+[![Version](https://img.shields.io/badge/Version-1.0.0-green.svg)](VERSION)
 
 ## 📋 Présentation
 
@@ -21,36 +22,11 @@ Application professionnelle de conversion de fichiers PDF en archives CBZ (Comic
 - ✅ **Traitement batch** pour fichiers multiples
 - ✅ **Interface moderne** avec glisser-déposer et prévisualisation
 - ✅ **Cross-platform** macOS, Windows, Linux
-- Multi-page support
-
-## 📖 Quick Links
-
-**Choose your path:**
-
-- **[CLI-README.md](CLI-README.md)** - Full feature documentation
-- **[USAGE-GUIDE.md](USAGE-GUIDE.md)** - Practical examples and scripts
-- **[INSTALLATION.md](INSTALLATION.md)** - System-specific setup
-- **[MIGRATION-SUMMARY.md](MIGRATION-SUMMARY.md)** - What changed (for existing users)
-- **[REFACTORING.md](REFACTORING.md)** - Technical details of the refactoring
-
-## ⚡ Quick Start
-
-### Installation (macOS/Linux)
-
-```bash
-# One command - handles everything
-./install.sh
-
-# Or manual build
-cd src-cli
-cargo build --release
-```
-
-### Usage
 
 ## 🚀 Installation Rapide
 
 ### Prérequis
+
 - **Rust 1.75+** - [Installer Rust](https://rustup.rs/)
 - **Node.js 18+** - [Installer Node.js](https://nodejs.org/)
 - **pnpm 8+** - `npm install -g pnpm`
@@ -62,7 +38,7 @@ cargo build --release
 pnpm install
 
 # Lancer en mode développement
-pnpm tauri dev
+./dev.sh
 
 # Build pour production
 pnpm tauri build
@@ -83,17 +59,15 @@ cargo install --path .
 
 ## 💡 Utilisation
 
-### Interface Graphique (Débutants)
+### Interface Graphique
 
-1. Lancez l'application : `pnpm tauri dev`
+1. Lancez l'application : `./dev.sh`
 2. **Glissez-déposez** votre fichier PDF ou CBZ
 3. **Choisissez** le dossier de sortie
 4. **Sélectionnez** la qualité (Lossless recommandé)
 5. Cliquez sur **"Convertir"**
 
-Voir [Guide GUI détaillé](docs/GUIDE_GUI.md)
-
-### Ligne de Commande (Avancé)
+### Ligne de Commande
 
 ```bash
 # Conversion PDF → CBZ (qualité lossless)
@@ -112,8 +86,6 @@ pdf-to-cbz batch-convert ./input/ ./output/ --quality high
 pdf-to-cbz --help
 ```
 
-Voir [Guide CLI complet](docs/GUIDE_CLI.md)
-
 ## 📊 Performances
 
 | Opération | Temps (100 pages) | Qualité | Taille |
@@ -125,36 +97,34 @@ Voir [Guide CLI complet](docs/GUIDE_CLI.md)
 
 *Tests effectués sur MacBook Pro M1, 16GB RAM*
 
-See [USAGE-GUIDE.md](USAGE-GUIDE.md) for more examples.
-
-## 🐛 Troubleshooting
+## 🐛 Résolution de Problèmes
 
 ### "Failed to load PDF"
+
+La bibliothèque PDFium est incluse dans l'application. Si vous avez des problèmes :
+
 ```bash
-# Install libpdfium
-brew install pdfium              # macOS
-sudo apt-get install libpdfium0-dev  # Linux
+# Vérifier que PDFium est présent
+ls resources/pdfium/
 ```
 
-### "unar not found" (for CBR files)
+### "unar not found" (pour fichiers CBR)
+
 ```bash
-# Install unar
+# Installer unar
 brew install unar                # macOS
 sudo apt-get install unar        # Linux
 ```
 
-See [INSTALLATION.md](INSTALLATION.md) for full setup guide.
+## 📚 Documentation
 
-## 🚀 Getting Started
-
-
-## 📚 Documentation Complète
-
-- 📘 **[Guide Utilisateur](docs/GUIDE_UTILISATEUR.md)** - Guide pas à pas pour débutants
-- 📗 **[Guide CLI](docs/GUIDE_CLI.md)** - Documentation complète ligne de commande
-- 📙 **[Guide GUI](docs/GUIDE_GUI.md)** - Utilisation interface graphique
-- 📕 **[Architecture](docs/ARCHITECTURE.md)** - Documentation technique
-- 📔 **[Guide Développeur](docs/GUIDE_DEVELOPPEUR.md)** - Contribution et développement
+| Guide | Description |
+|-------|-------------|
+| 📘 [Guide Utilisateur](docs/GUIDE_UTILISATEUR.md) | Guide pas à pas pour débutants |
+| 📗 [Guide CLI](docs/GUIDE_CLI.md) | Documentation complète ligne de commande |
+| 📙 [Guide GUI](docs/GUIDE_GUI.md) | Utilisation interface graphique |
+| 📕 [Architecture](docs/ARCHITECTURE.md) | Documentation technique |
+| 📔 [Guide Développeur](docs/GUIDE_DEVELOPPEUR.md) | Contribution et développement |
 
 ## 🏗️ Architecture
 
@@ -170,49 +140,33 @@ pdf-to-cbz-converter/
 │   │   └── utils/         # Utilitaires de conversion
 │   └── Cargo.toml
 ├── src-cli/               # Application CLI (Rust)
-│   ├── main.rs           # Point d'entrée CLI
-│   ├── pdf.rs            # Traitement PDF
-│   ├── archive.rs        # Gestion archives
 │   └── Cargo.toml
-└── src-lib/               # Bibliothèque partagée (Rust)
-    ├── src/
-    │   └── conversion.rs  # Logique de conversion
-    └── Cargo.toml
+├── src-lib/               # Bibliothèque partagée (Rust)
+│   └── Cargo.toml
+├── resources/pdfium/      # Bibliothèques PDFium (macOS, Windows, Linux)
+└── docs/                  # Documentation utilisateur
 ```
 
 ### Stack Technique
 
-**Backend (Rust)** :
-- `pdfium-render` - Rendu PDF haute performance
-- `zip` - Création/extraction archives CBZ
-- `image` - Traitement d'images
-- `printpdf` - Génération PDF
-
-**Frontend (TypeScript)** :
-- React 18 - Framework UI
-- TailwindCSS - Styling
-- Vite - Build tool
-- Tauri - Desktop framework
-
-**CLI** :
-- `clap` - Parsing arguments
-- `anyhow` - Gestion erreurs
+| Composant | Technologies |
+|-----------|-------------|
+| **Backend** | Rust, pdfium-render, zip, image, printpdf |
+| **Frontend** | React 18, TailwindCSS, Vite, Tauri v2 |
+| **CLI** | Rust, clap, anyhow |
 
 ## 🛠️ Développement
 
 ```bash
 # Cloner le projet
-git clone https://github.com/votre-user/pdf-to-cbz-converter2.git
+git clone https://github.com/r45635/pdf-to-cbz-converter2.git
 cd pdf-to-cbz-converter2
 
 # Installer les dépendances
 pnpm install
 
-# Build la bibliothèque partagée
-cd src-lib && cargo build --release && cd ..
-
 # Développement GUI
-pnpm tauri dev
+./dev.sh
 
 # Développement CLI
 cd src-cli
@@ -223,10 +177,13 @@ Voir le [Guide Développeur](docs/GUIDE_DEVELOPPEUR.md) pour plus de détails.
 
 ## 🤝 Contribution
 
-Les contributions sont bienvenues ! Consultez :
-1. [Guide Développeur](docs/GUIDE_DEVELOPPEUR.md)
-2. [Architecture](docs/ARCHITECTURE.md)
-3. Créez une issue ou pull request
+Les contributions sont bienvenues ! 
+
+1. Fork le projet
+2. Créez votre branche (`git checkout -b feature/ma-feature`)
+3. Commit vos changements (`git commit -m 'Ajout ma feature'`)
+4. Push (`git push origin feature/ma-feature`)
+5. Ouvrez une Pull Request
 
 ## 📝 Licence
 
@@ -234,17 +191,10 @@ MIT License - Voir [LICENSE](LICENSE)
 
 ## 📧 Support
 
-- **Issues** : [GitHub Issues](https://github.com/votre-user/pdf-to-cbz-converter2/issues)
+- **Issues** : [GitHub Issues](https://github.com/r45635/pdf-to-cbz-converter2/issues)
 - **Documentation** : Consultez le dossier [docs/](docs/)
 
 ---
 
 **Made with ❤️ using Rust 🦀 and TypeScript**
-
-**Total dependencies: 6** (down from 16+)
-
-## 📊 Metrics Summary
-
-| Metric | v2.0 | v3.0 | Improvement |
-|--------|------|------|------------|
 
