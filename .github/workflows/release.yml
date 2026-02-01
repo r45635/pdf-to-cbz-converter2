@@ -13,14 +13,11 @@ on:
 permissions:
   contents: write
 
-env:
-  CARGO_TERM_COLOR: always
-
 jobs:
-  # Get version and prepare
-  prepare:
+  create-release:
     runs-on: ubuntu-latest
     outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
       version: ${{ steps.get_version.outputs.version }}
     steps:
       - name: Get version from tag or input
@@ -31,26 +28,53 @@ jobs:
           else
             echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
           fi
-          
-      - name: Print version
-        run: echo "Building version ${{ steps.get_version.outputs.version }}"
 
-  # Build Tauri apps for all platforms
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          release_name: Release v${{ steps.get_version.outputs.version }}
+          draft: false
+          prerelease: false
+          body: |
+            # PDF to CBZ Converter v${{ steps.get_version.outputs.version }}
+            
+            ## 📦 Downloads
+            
+            ### Desktop GUI (Tauri)
+            - **macOS**: `pdf-to-cbz-converter_${{ steps.get_version.outputs.version }}_x64.dmg`
+            - **Windows**: `pdf-to-cbz-converter_${{ steps.get_version.outputs.version }}_x64-setup.exe` ou `.msi`
+            - **Linux**: 
+              - Debian/Ubuntu: `pdf-to-cbz-converter_${{ steps.get_version.outputs.version }}_amd64.deb`
+              - AppImage: `pdf-to-cbz-converter_${{ steps.get_version.outputs.version }}_amd64.AppImage`
+            
+            ### CLI Tool
+            - **macOS**: `pdf-to-cbz-cli-macos-x64.tar.gz`
+            - **Windows**: `pdf-to-cbz-cli-windows-x64.zip`
+            - **Linux**: `pdf-to-cbz-cli-linux-x64.tar.gz`
+            
+            ## 📚 Documentation
+            - [Guide Utilisateur](https://github.com/${{ github.repository }}/blob/main/docs/GUIDE_UTILISATEUR.md)
+            - [Guide CLI](https://github.com/${{ github.repository }}/blob/main/docs/GUIDE_CLI.md)
+            - [Guide GUI](https://github.com/${{ github.repository }}/blob/main/docs/GUIDE_GUI.md)
+            - [Architecture](https://github.com/${{ github.repository }}/blob/main/docs/ARCHITECTURE.md)
+            - [Guide Développeur](https://github.com/${{ github.repository }}/blob/main/docs/GUIDE_DEVELOPPEUR.md)
+
   build-tauri:
-    needs: prepare
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: 'macos-latest'
             args: '--target universal-apple-darwin'
-            rust_targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
           - platform: 'ubuntu-22.04'
             args: ''
-            rust_targets: ''
           - platform: 'windows-latest'
             args: ''
-            rust_targets: ''
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -70,12 +94,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.rust_targets }}
-
-      - name: Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: './src-tauri -> target'
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Install dependencies (Ubuntu)
         if: matrix.platform == 'ubuntu-22.04'
@@ -91,32 +110,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: v${{ needs.prepare.outputs.version }}
-          releaseName: 'PDF to CBZ Converter v${{ needs.prepare.outputs.version }}'
-          releaseBody: |
-            ## 📦 Téléchargements
-            
-            ### Application Desktop (GUI)
-            - **macOS**: Téléchargez le fichier `.dmg` (Universal - fonctionne sur Intel et Apple Silicon)
-            - **Windows**: Téléchargez le fichier `.msi` ou `.exe`
-            - **Linux**: Téléchargez le fichier `.deb` ou `.AppImage`
-            
-            ### Outil en Ligne de Commande (CLI)
-            - **macOS Intel**: `pdf-to-cbz-cli-macos-x64.tar.gz`
-            - **macOS Apple Silicon**: `pdf-to-cbz-cli-macos-arm64.tar.gz`
-            - **Windows**: `pdf-to-cbz-cli-windows-x64.zip`
-            - **Linux**: `pdf-to-cbz-cli-linux-x64.tar.gz`
-            
-            ## 📚 Documentation
-            - [Guide Utilisateur](https://github.com/${{ github.repository }}/blob/main/docs/GUIDE_UTILISATEUR.md)
-            - [Guide CLI](https://github.com/${{ github.repository }}/blob/main/docs/GUIDE_CLI.md)
+          projectPath: src-tauri
+          tagName: v${{ needs.create-release.outputs.version }}
+          releaseName: 'v${{ needs.create-release.outputs.version }}'
+          releaseBody: 'See the assets to download and install this version.'
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
 
-  # Build CLI tools for all platforms
   build-cli:
-    needs: [prepare, build-tauri]
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
@@ -124,19 +127,19 @@ jobs:
           - os: macos-latest
             target: x86_64-apple-darwin
             artifact: pdf-to-cbz-cli-macos-x64
-            archive_ext: tar.gz
+            ext: ''
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact: pdf-to-cbz-cli-macos-arm64
-            archive_ext: tar.gz
+            ext: ''
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             artifact: pdf-to-cbz-cli-linux-x64
-            archive_ext: tar.gz
+            ext: ''
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: pdf-to-cbz-cli-windows-x64
-            archive_ext: zip
+            ext: '.exe'
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -148,36 +151,73 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Rust cache
-        uses: Swatinem/rust-cache@v2
+      - name: Cache cargo registry
+        uses: actions/cache@v4
         with:
-          workspaces: './src-cli -> target'
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Build CLI
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: src-cli/target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build CLI (Linux/macOS)
+        if: matrix.os != 'windows-latest'
         working-directory: src-cli
-        run: cargo build --release --target ${{ matrix.target }}
-
-      - name: Prepare artifact (Unix)
-        if: runner.os != 'Windows'
         run: |
-          mkdir -p dist
-          cp src-cli/target/${{ matrix.target }}/release/pdf-to-cbz dist/
-          chmod +x dist/pdf-to-cbz
+          cargo build --release --target ${{ matrix.target }}
+          mkdir -p ../dist
+          cp target/${{ matrix.target }}/release/pdf-to-cbz ../dist/pdf-to-cbz${{ matrix.ext }}
+          chmod +x ../dist/pdf-to-cbz${{ matrix.ext }}
+
+      - name: Build CLI (Windows)
+        if: matrix.os == 'windows-latest'
+        working-directory: src-cli
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+          mkdir ..\dist
+          copy target\${{ matrix.target }}\release\pdf-to-cbz.exe ..\dist\pdf-to-cbz.exe
+
+      - name: Create archive (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
           cd dist
           tar -czf ${{ matrix.artifact }}.tar.gz pdf-to-cbz
+          cd ..
 
-      - name: Prepare artifact (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
+      - name: Create archive (Windows)
+        if: matrix.os == 'windows-latest'
         run: |
-          New-Item -ItemType Directory -Force -Path dist
-          Copy-Item src-cli/target/${{ matrix.target }}/release/pdf-to-cbz.exe dist/
-          Compress-Archive -Path dist/pdf-to-cbz.exe -DestinationPath dist/${{ matrix.artifact }}.zip
+          cd dist
+          7z a ${{ matrix.artifact }}.zip pdf-to-cbz.exe
+          cd ..
 
-      - name: Upload to Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ needs.prepare.outputs.version }}
-          files: dist/${{ matrix.artifact }}.${{ matrix.archive_ext }}
+      - name: Upload CLI to Release (tar.gz)
+        if: matrix.os != 'windows-latest'
+        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./dist/${{ matrix.artifact }}.tar.gz
+          asset_name: ${{ matrix.artifact }}.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload CLI to Release (zip)
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./dist/${{ matrix.artifact }}.zip
+          asset_name: ${{ matrix.artifact }}.zip
+          asset_content_type: application/zip
