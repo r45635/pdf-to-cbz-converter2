@@ -1,7 +1,6 @@
 use pdfium_render::prelude::*;
 use std::path::PathBuf;
 use std::env;
-use std::fs;
 
 /// Initialize Pdfium with explicit library path and logging
 /// Searches in multiple locations to work in both development and production
@@ -43,12 +42,16 @@ pub fn bind_pdfium() -> Result<Pdfium, PdfiumError> {
                     ]
                 } else if cfg!(target_os = "windows") {
                     vec![
-                        // Windows: same directory as exe
+                        // Windows: same directory as exe (most common for Tauri)
                         exe_dir.join(lib_filename),
+                        // Windows: _up_/resources for some installers
+                        exe_dir.join("_up_").join("resources").join(lib_filename),
                         // Windows: resources subdirectory
                         exe_dir.join("resources").join(lib_filename),
                         // Windows installer may put it in parent
                         exe_dir.join("..").join(lib_filename),
+                        // Check if we're in a Tauri bundle (_up_ directory pattern)
+                        exe_dir.parent().and_then(|p| p.parent()).map(|p| p.join(lib_filename)).unwrap_or_else(|| exe_dir.join(lib_filename)),
                     ]
                 } else {
                     // Linux
@@ -60,9 +63,14 @@ pub fn bind_pdfium() -> Result<Pdfium, PdfiumError> {
                 };
 
                 for candidate in candidates {
-                    let canonical = candidate.canonicalize().unwrap_or(candidate.clone());
+                    let canonical = if candidate.exists() {
+                        candidate.canonicalize().unwrap_or(candidate.clone())
+                    } else {
+                        candidate.clone()
+                    };
                     search_paths.push(canonical.clone());
                     if canonical.exists() {
+                        eprintln!("[PDFIUM] Found library at: {}", canonical.display());
                         lib_path = Some(canonical);
                         break;
                     }
