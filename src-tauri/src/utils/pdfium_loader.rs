@@ -42,15 +42,20 @@ pub fn bind_pdfium() -> Result<Pdfium, PdfiumError> {
                     ]
                 } else if cfg!(target_os = "windows") {
                     vec![
-                        // Windows: same directory as exe (most common for Tauri)
+                        // Windows: same directory as exe
                         exe_dir.join(lib_filename),
-                        // Windows: _up_/resources for some installers
-                        exe_dir.join("_up_").join("resources").join(lib_filename),
-                        // Windows: resources subdirectory
+                        // Tauri v2 resource patterns - try all variations with pdfium subdirectory
+                        exe_dir.join("resources").join("pdfium").join(lib_filename),
                         exe_dir.join("resources").join(lib_filename),
-                        // Windows installer may put it in parent
+                        exe_dir.join("_up_").join("resources").join("pdfium").join(lib_filename),
+                        exe_dir.join("_up_").join("resources").join(lib_filename),
+                        // Parent directories
+                        exe_dir.join("..").join("resources").join("pdfium").join(lib_filename),
+                        exe_dir.join("..").join("resources").join(lib_filename),
                         exe_dir.join("..").join(lib_filename),
-                        // Check if we're in a Tauri bundle (_up_ directory pattern)
+                        // Grandparent directory patterns
+                        exe_dir.parent().and_then(|p| p.parent()).map(|p| p.join("resources").join("pdfium").join(lib_filename)).unwrap_or_else(|| exe_dir.join(lib_filename)),
+                        exe_dir.parent().and_then(|p| p.parent()).map(|p| p.join("resources").join(lib_filename)).unwrap_or_else(|| exe_dir.join(lib_filename)),
                         exe_dir.parent().and_then(|p| p.parent()).map(|p| p.join(lib_filename)).unwrap_or_else(|| exe_dir.join(lib_filename)),
                     ]
                 } else {
