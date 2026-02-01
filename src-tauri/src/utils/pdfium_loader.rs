@@ -30,7 +30,9 @@ pub fn bind_pdfium() -> Result<Pdfium, PdfiumError> {
     // Try 2: Bundled resources (Tauri package)
     if lib_path.is_none() {
         if let Ok(exe_path) = env::current_exe() {
+            eprintln!("[PDFIUM] Executable path: {}", exe_path.display());
             if let Some(exe_dir) = exe_path.parent() {
+                eprintln!("[PDFIUM] Executable directory: {}", exe_dir.display());
                 // Platform-specific bundle paths
                 let candidates: Vec<PathBuf> = if cfg!(target_os = "macos") {
                     vec![
@@ -73,9 +75,16 @@ pub fn bind_pdfium() -> Result<Pdfium, PdfiumError> {
                     } else {
                         candidate.clone()
                     };
+                    
+                    // Log EVERY path we try, whether it exists or not
+                    eprintln!("[PDFIUM] Checking: {} - {}", 
+                        canonical.display(), 
+                        if canonical.exists() { "EXISTS ✓" } else { "not found" }
+                    );
+                    
                     search_paths.push(canonical.clone());
                     if canonical.exists() {
-                        eprintln!("[PDFIUM] Found library at: {}", canonical.display());
+                        eprintln!("[PDFIUM] ✓ FOUND library at: {}", canonical.display());
                         lib_path = Some(canonical);
                         break;
                     }
