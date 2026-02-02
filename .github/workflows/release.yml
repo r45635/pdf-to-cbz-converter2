@@ -97,12 +97,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Verify PDFium libraries
+      - name: Verify PDFium libraries (Windows)
+        if: matrix.platform == 'windows-latest'
+        run: |
+          dir resources\pdfium\
+          if (!(Test-Path "resources\pdfium\pdfium.dll")) { 
+            Write-Error "ERROR: pdfium.dll not found!"
+            exit 1
+          }
+        shell: pwsh
+
+      - name: Verify PDFium libraries (Unix)
+        if: matrix.platform != 'windows-latest'
         run: |
           ls -la resources/pdfium/
-          if [ "${{ matrix.platform }}" = "windows-latest" ]; then
-            test -f resources/pdfium/pdfium.dll || (echo "ERROR: pdfium.dll not found!" && exit 1)
-          elif [ "${{ matrix.platform }}" = "macos-latest" ]; then
+          if [ "${{ matrix.platform }}" = "macos-latest" ]; then
             test -f resources/pdfium/libpdfium.dylib || (echo "ERROR: libpdfium.dylib not found!" && exit 1)
           else
             test -f resources/pdfium/libpdfium.so || (echo "ERROR: libpdfium.so not found!" && exit 1)
