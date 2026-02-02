@@ -20,7 +20,7 @@ pub fn analyze_optimal_resolution(pdf_path: &str) -> Result<u32, String> {
     eprintln!("[PDF_ANALYZER] Original PDF: {:.1}MB ({} bytes)", pdf_size_mb, pdf_size_bytes);
 
     // Load PDF using pdfium-render (blocking - call from spawn_blocking)
-    let pdfium = crate::utils::bind_pdfium()
+    let pdfium = crate::utils::bind_pdfium(None)
         .map_err(|e| format!("Failed to initialize Pdfium: {}", e))?;
     let document = pdfium
         .load_pdf_from_byte_vec(pdf_data.clone(), None)

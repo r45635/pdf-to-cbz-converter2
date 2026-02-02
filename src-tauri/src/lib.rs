@@ -13,6 +13,14 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .setup(|app| {
+            // Test PDFium loading on startup and log to debug UI
+            let app_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                let _ = crate::utils::bind_pdfium(Some(&app_handle));
+            });
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             analyze_pdf,
             analyze_cbz,

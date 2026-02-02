@@ -88,7 +88,7 @@ pub async fn analyze_pdf_internal(path: &str) -> Result<PdfAnalysisResult, Strin
 
     // Load PDF using pdfium-render (blocking operation)
     let result = tokio::task::spawn_blocking(move || {
-        let pdfium = crate::utils::bind_pdfium()
+        let pdfium = crate::utils::bind_pdfium(None)
             .map_err(|e| format!("Failed to initialize Pdfium: {}", e))?;
 
         let document = pdfium

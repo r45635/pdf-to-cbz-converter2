@@ -44,7 +44,7 @@ pub fn render_pdf_page_sync(
     format: ImageFormat,
     _quality: u8,
 ) -> Result<Vec<u8>> {
-    let pdfium = crate::utils::bind_pdfium()?;
+    let pdfium = crate::utils::bind_pdfium(None)?;
 
     let document = pdfium
         .load_pdf_from_byte_vec(pdf_data.to_vec(), None)

@@ -1,10 +1,20 @@
 use pdfium_render::prelude::*;
 use std::path::PathBuf;
 use std::env;
+use tauri::{AppHandle, Emitter};
+use serde_json::json;
+
+/// Send a log message to the debug UI
+fn emit_log(app: Option<&AppHandle>, message: String) {
+    eprintln!("{}", message); // Still print to console for dev
+    if let Some(handle) = app {
+        let _ = handle.emit("pdfium-debug", json!({ "message": message }));
+    }
+}
 
 /// Initialize Pdfium with explicit library path and logging
 /// Searches in multiple locations to work in both development and production
-pub fn bind_pdfium() -> Result<Pdfium, PdfiumError> {
+pub fn bind_pdfium(app: Option<&AppHandle>) -> Result<Pdfium, PdfiumError> {
     // Determine library filename based on platform
     let lib_filename = if cfg!(target_os = "macos") {
         "libpdfium.dylib"
@@ -30,9 +40,9 @@ pub fn bind_pdfium() -> Result<Pdfium, PdfiumError> {
     // Try 2: Bundled resources (Tauri package)
     if lib_path.is_none() {
         if let Ok(exe_path) = env::current_exe() {
-            eprintln!("[PDFIUM] Executable path: {}", exe_path.display());
+            emit_log(app, format!("[PDFIUM] Executable path: {}", exe_path.display()));
             if let Some(exe_dir) = exe_path.parent() {
-                eprintln!("[PDFIUM] Executable directory: {}", exe_dir.display());
+                emit_log(app, format!("[PDFIUM] Executable directory: {}", exe_dir.display()));
                 // Platform-specific bundle paths
                 let candidates: Vec<PathBuf> = if cfg!(target_os = "macos") {
                     vec![
@@ -77,14 +87,12 @@ pub fn bind_pdfium() -> Result<Pdfium, PdfiumError> {
                     };
                     
                     // Log EVERY path we try, whether it exists or not
-                    eprintln!("[PDFIUM] Checking: {} - {}", 
-                        canonical.display(), 
-                        if canonical.exists() { "EXISTS ✓" } else { "not found" }
-                    );
+                    let status = if canonical.exists() { "EXISTS ✓" } else { "not found" };
+                    emit_log(app, format!("[PDFIUM] Checking: {} - {}", canonical.display(), status));
                     
                     search_paths.push(canonical.clone());
                     if canonical.exists() {
-                        eprintln!("[PDFIUM] ✓ FOUND library at: {}", canonical.display());
+                        emit_log(app, format!("[PDFIUM] ✓ FOUND library at: {}", canonical.display()));
                         lib_path = Some(canonical);
                         break;
                     }
@@ -131,7 +139,7 @@ pub fn bind_pdfium() -> Result<Pdfium, PdfiumError> {
                 return Ok(Pdfium::new(bindings));
             }
             Err(e) => {
-                eprintln!("[PDFIUM] Failed to load from {}: {:?}", final_path.display(), e);
+                emit_log(app, format!("[PDFIUM] Failed to load from {}: {:?}", final_path.display(), e));
             }
         }
     }
@@ -140,11 +148,11 @@ pub fn bind_pdfium() -> Result<Pdfium, PdfiumError> {
     match Pdfium::bind_to_system_library() {
         Ok(bindings) => Ok(Pdfium::new(bindings)),
         Err(e) => {
-            eprintln!("[PDFIUM ERROR] Library not found. Searched in:");
+            emit_log(app, "[PDFIUM ERROR] Library not found. Searched in:".to_string());
             for path in &search_paths {
-                eprintln!("[PDFIUM]   - {}", path.display());
+                emit_log(app, format!("[PDFIUM]   - {}", path.display()));
             }
-            eprintln!("[PDFIUM] System library also failed: {:?}", e);
+            emit_log(app, format!("[PDFIUM] System library also failed: {:?}", e));
             Err(e)
         }
     }

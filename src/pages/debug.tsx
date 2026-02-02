@@ -55,6 +55,8 @@ export default function DebugPage() {
 
     // Listen for backend progress events
     let unlistenProgress: (() => void) | undefined;
+    let unlistenPdfium: (() => void) | undefined;
+    
     listen('conversion-progress', (event: any) => {
       setLogs(prev => [...prev, {
         timestamp: new Date().toLocaleTimeString(),
@@ -66,12 +68,25 @@ export default function DebugPage() {
       unlistenProgress = fn;
     });
 
+    // Listen for PDFium debug events
+    listen('pdfium-debug', (event: any) => {
+      setLogs(prev => [...prev, {
+        timestamp: new Date().toLocaleTimeString(),
+        level: 'info',
+        message: event.payload.message || JSON.stringify(event.payload),
+        source: 'PDFIUM',
+      }]);
+    }).then(fn => {
+      unlistenPdfium = fn;
+    });
+
     return () => {
       console.log = originalLog;
       console.error = originalError;
       console.warn = originalWarn;
       console.info = originalInfo;
       if (unlistenProgress) unlistenProgress();
+      if (unlistenPdfium) unlistenPdfium();
     };
   }, []);
 
