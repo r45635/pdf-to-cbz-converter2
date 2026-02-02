@@ -4,32 +4,12 @@ on:
   push:
     tags:
       - 'v*.*.*'
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version number (e.g., 1.0.0)'
-        required: true
 
 permissions:
   contents: write
 
 jobs:
-  get-version:
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.get_version.outputs.version }}
-    steps:
-      - name: Get version from tag or input
-        id: get_version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-          fi
-
-  build-tauri:
-    needs: get-version
+  build-tauri
     strategy:
       fail-fast: false
       matrix:
@@ -93,10 +73,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: v${{ needs.get-version.outputs.version }}
-          releaseName: 'PDF to CBZ Converter v${{ needs.get-version.outputs.version }}'
+          tagName: ${{ github.ref_name }}
+          releaseName: 'PDF to CBZ Converter ${{ github.ref_name }}'
           releaseBody: |
-            # PDF to CBZ Converter v${{ needs.get-version.outputs.version }}
+            # PDF to CBZ Converter ${{ github.ref_name }}
             
             ## 📦 Downloads
             
