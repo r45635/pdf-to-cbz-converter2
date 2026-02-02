@@ -4,9 +4,9 @@ This directory contains the PDFium native libraries required for PDF processing.
 
 ## Required Files
 
-- **macOS**: `libpdfium.dylib` ✅ (already included)
-- **Windows**: `pdfium.dll` ❌ (needs to be added)
-- **Linux**: `libpdfium.so` ❌ (needs to be added)
+- **macOS**: `libpdfium.dylib` ✅ (included)
+- **Windows**: `pdfium.dll` ✅ (included)
+- **Linux**: `libpdfium.so` ✅ (included)
 
 ## Download PDFium Libraries
 
@@ -30,9 +30,9 @@ Download the appropriate version for each platform:
 
 ## Current Status
 
-- ✅ macOS: `libpdfium.dylib` (5.3 MB)
-- ❌ Windows: Missing `pdfium.dll`
-- ❌ Linux: Missing `libpdfium.so`
+- ✅ macOS: `libpdfium.dylib` (5.5 MB)
+- ✅ Windows: `pdfium.dll` (5.8 MB)
+- ✅ Linux: `libpdfium.so` (5.7 MB)
 
 ## Note
 

@@ -35,11 +35,11 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": [
-      "../resources/pdfium/pdfium.dll",
-      "../resources/pdfium/libpdfium.so",
-      "../resources/pdfium/libpdfium.dylib"
-    ],
+    "resources": {
+      "../resources/pdfium/pdfium.dll": "resources/pdfium/pdfium.dll",
+      "../resources/pdfium/libpdfium.so": "resources/pdfium/libpdfium.so",
+      "../resources/pdfium/libpdfium.dylib": "resources/pdfium/libpdfium.dylib"
+    },
     "macOS": {
       "minimumSystemVersion": "10.13"
     },
