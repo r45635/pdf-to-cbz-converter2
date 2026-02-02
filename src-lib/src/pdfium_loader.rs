@@ -44,19 +44,35 @@ pub fn bind_pdfium() -> Result<Pdfium, PdfiumError> {
     // Priority 3: Next to the executable
     if lib_path.is_none() {
         if let Ok(exe_path) = env::current_exe() {
+            eprintln!("[PDFIUM] Executable path: {}", exe_path.display());
             if let Some(exe_dir) = exe_path.parent() {
+                eprintln!("[PDFIUM] Executable directory: {}", exe_dir.display());
                 // Check multiple locations relative to executable
                 let candidates = vec![
                     exe_dir.join(lib_filename),
+                    exe_dir.join("resources").join("pdfium").join(lib_filename),
                     exe_dir.join("resources").join(lib_filename),
+                    exe_dir.join("_up_").join("resources").join("pdfium").join(lib_filename),
+                    exe_dir.join("_up_").join("resources").join(lib_filename),
+                    exe_dir.join("..").join("resources").join("pdfium").join(lib_filename),
+                    exe_dir.join("..").join("resources").join(lib_filename),
                     exe_dir.join("lib").join(lib_filename),
                     exe_dir.join("../Resources").join(lib_filename), // macOS bundle
                 ];
                 
                 for candidate in candidates {
-                    let canonical = candidate.canonicalize().unwrap_or(candidate.clone());
+                    let canonical = if candidate.exists() {
+                        candidate.canonicalize().unwrap_or(candidate.clone())
+                    } else {
+                        candidate.clone()
+                    };
+                    
+                    let status = if canonical.exists() { "EXISTS ✓" } else { "not found" };
+                    eprintln!("[PDFIUM] Checking: {} - {}", canonical.display(), status);
+                    
                     search_paths.push(canonical.clone());
                     if canonical.exists() {
+                        eprintln!("[PDFIUM] ✓ FOUND library at: {}", canonical.display());
                         lib_path = Some(canonical);
                         break;
                     }
