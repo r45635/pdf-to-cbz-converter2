@@ -209,6 +209,8 @@ fn convert_pdf_lossless(pdf_data: &[u8], dpi: u32) -> Result<Vec<(String, Vec<u8
 
 #[tauri::command]
 pub async fn convert_cbz_to_pdf(path: String, lossless: bool, quality: u32) -> Result<Vec<u8>, String> {
+    use crate::utils::MemoryMonitor;
+
     // Acquire lock to prevent concurrent PDFium calls
     let _lock = CONVERSION_LOCK.lock().await;
 
@@ -218,13 +220,36 @@ pub async fn convert_cbz_to_pdf(path: String, lossless: bool, quality: u32) -> R
         return Err("CBZ file not found".to_string());
     }
 
-    eprintln!("[GUI] Converting CBZ to PDF: {} (Lossless: {}, Quality: {})", path, lossless, quality);
+    // Check file size and warn about large files
+    let file_size = fs::metadata(&cbz_path)
+        .map(|m| m.len())
+        .unwrap_or(0);
+    let file_size_mb = file_size as f64 / (1024.0 * 1024.0);
+
+    eprintln!("[GUI] Converting CBZ to PDF: {} ({:.1} MB) (Lossless: {}, Quality: {})",
+              path, file_size_mb, lossless, quality);
+
+    // Warn about very large files
+    if file_size_mb > 500.0 {
+        eprintln!("[WARNING] Large CBZ file detected ({:.1} MB). This may require significant memory.", file_size_mb);
+        eprintln!("[WARNING] If the conversion fails, try with a smaller file or close other applications.");
+    }
+
+    // Start memory monitoring
+    let mut mem_monitor = MemoryMonitor::new("CBZ to PDF conversion");
 
     let cbz_data = fs::read(&cbz_path)
         .map_err(|e| format!("Failed to read CBZ file: {}", e))?;
 
+    mem_monitor.check("After reading CBZ file");
+
     let images = utils::extract_images_from_cbz(&cbz_data)
-        .map_err(|e| format!("Failed to extract CBZ: {}", e))?;
+        .map_err(|e| {
+            eprintln!("[ERROR] Failed to extract CBZ: {}", e);
+            format!("Failed to extract CBZ: {}", e)
+        })?;
+
+    mem_monitor.check(&format!("After extracting {} images", images.len()));
 
     if images.is_empty() {
         return Err("No images found in CBZ file".to_string());
@@ -232,10 +257,21 @@ pub async fn convert_cbz_to_pdf(path: String, lossless: bool, quality: u32) -> R
 
     eprintln!("[GUI] Extracted {} images, creating PDF...", images.len());
 
-    let pdf_data = utils::create_pdf_from_images(images, |_current, _total| {})
-        .map_err(|e| format!("Failed to create PDF: {}", e))?;
+    let pdf_data = utils::create_pdf_from_images(images, |current, total| {
+        if current % 50 == 0 || current == total {
+            eprintln!("[GUI] Creating PDF: {}/{} images processed", current, total);
+        }
+    })
+    .map_err(|e| {
+        eprintln!("[ERROR] Failed to create PDF: {}", e);
+        format!("Failed to create PDF: {}", e)
+    })?;
 
-    eprintln!("[GUI] PDF created: {} bytes", pdf_data.len());
+    mem_monitor.check("After creating PDF");
+
+    eprintln!("[GUI] PDF created: {} bytes ({:.1} MB)", pdf_data.len(), pdf_data.len() as f64 / (1024.0 * 1024.0));
+
+    mem_monitor.finish();
 
     Ok(pdf_data)
 }

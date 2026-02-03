@@ -7,6 +7,9 @@ use tauri::Emitter;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize panic handler for crash debugging
+    utils::install_panic_handler();
+
     // Initialize tracing
     tracing_subscriber::fmt::init();
 

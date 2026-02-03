@@ -158,13 +158,19 @@ pub fn extract_images_from_cbz(cbz_data: &[u8]) -> Result<Vec<(String, Vec<u8>)>
 
 /// Extract images from ZIP archive (CBZ format)
 fn extract_images_from_zip(cbz_data: &[u8]) -> Result<Vec<(String, Vec<u8>)>> {
+    eprintln!("[EXTRACT] Starting extraction from CBZ ({} bytes)", cbz_data.len());
+
     let cursor = Cursor::new(cbz_data);
     let mut archive = ZipArchive::new(cursor)
         .context("Failed to open CBZ archive")?;
 
-    let mut images: Vec<(String, Vec<u8>)> = Vec::new();
+    let total_files = archive.len();
+    eprintln!("[EXTRACT] CBZ contains {} total files", total_files);
 
-    for i in 0..archive.len() {
+    let mut images: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut total_bytes = 0u64;
+
+    for i in 0..total_files {
         let mut file = archive.by_index(i)
             .context(format!("Failed to read file at index {}", i))?;
 
@@ -175,11 +181,33 @@ fn extract_images_from_zip(cbz_data: &[u8]) -> Result<Vec<(String, Vec<u8>)>> {
             continue;
         }
 
+        let file_size = file.size();
+
+        // Warn about very large individual images
+        if file_size > 50_000_000 {
+            eprintln!("[EXTRACT WARNING] Large image detected: {} ({:.1} MB)",
+                     file_name, file_size as f64 / (1024.0 * 1024.0));
+        }
+
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)
-            .context("Failed to read file contents")?;
+            .context(format!("Failed to read image file: {}", file_name))?;
 
-        images.push((file_name, buffer));
+        total_bytes += buffer.len() as u64;
+        images.push((file_name.clone(), buffer));
+
+        // Log progress for large archives
+        if images.len() % 100 == 0 {
+            eprintln!("[EXTRACT] Extracted {} images so far ({:.1} MB total)",
+                     images.len(), total_bytes as f64 / (1024.0 * 1024.0));
+        }
+    }
+
+    eprintln!("[EXTRACT] Extraction complete: {} images, {:.1} MB total uncompressed data",
+             images.len(), total_bytes as f64 / (1024.0 * 1024.0));
+
+    if images.is_empty() {
+        return Err(anyhow::anyhow!("No image files found in CBZ archive. Supported formats: jpg, jpeg, png, webp, gif"));
     }
 
     // Sort by filename to maintain page order
