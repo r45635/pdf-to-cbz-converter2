@@ -37,3 +37,8 @@ Download the appropriate version for each platform:
 ## Note
 
 These files are platform-specific native libraries and must be included in the repository for cross-platform builds to work correctly.
+
+## License
+
+These binaries are distributed under their own license — see [LICENSE](LICENSE), copied from the
+`pdfium-linux-x64.tgz` archive of pdfium-binaries `chromium/6721` (same notice in every platform archive).
