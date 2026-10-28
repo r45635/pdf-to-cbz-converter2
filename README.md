@@ -189,6 +189,10 @@ Les contributions sont bienvenues !
 
 MIT License - Voir [LICENSE](LICENSE)
 
+**Composants tiers** : les bibliothèques PDFium de `resources/pdfium/` proviennent de
+[bblanchon/pdfium-binaries](https://github.com/bblanchon/pdfium-binaries) et restent sous leur propre
+licence (BSD-3-Clause de PDFium et composants inclus) — voir [resources/pdfium/LICENSE](resources/pdfium/LICENSE).
+
 ## 📧 Support
 
 - **Issues** : [GitHub Issues](https://github.com/r45635/pdf-to-cbz-converter2/issues)
