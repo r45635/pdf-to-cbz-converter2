@@ -1,5 +1,8 @@
 # PDF to CBZ Converter
 
+> 🇬🇧 **Desktop edition of [PDF to CBZ Converter](https://github.com/r45635/pdf-to-cbz-converter)** — native PDF ↔ CBZ/CBR converter for comics and manga. **[Download the installer](https://github.com/r45635/pdf-to-cbz-converter2/releases/latest)** for macOS (`.dmg`), Windows (`.exe`/`.msi`) or Linux (`.deb`/`.rpm`/`.AppImage`). Web app and Docker image: see the [main repository](https://github.com/r45635/pdf-to-cbz-converter).
+
+
 > **Convertisseur PDF ↔ CBZ/CBR haute performance avec interface graphique moderne**
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
